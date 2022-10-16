@@ -1,0 +1,82 @@
+Resources:   
+  AWSGlueJobRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - glue.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                  - "logs:DescribeLogStreams"
+                  - "s3:*"
+                  - "s3-object-lambda:*"
+                Resource: '*'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Path: "/"
+      RoleName: "sahil-sws-glue-job-role"
+  SahilDemoBucket1:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: sahil-demo-original-data-bkt
+  SahilDemoBucket2:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: sahil-demo-result-data-bkt
+  SahilTestDB:
+    Type: AWS::Glue::Database
+    Properties: 
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: sahil-demo-db
+  SahilTestGlueCrawler1:
+      Type: AWS::Glue::Crawler
+      Properties:
+        Name: sahil-demo-original-data-crawler
+        Role: AWSGlueServiceRoleSahil
+        DatabaseName: sahil-demo-db
+        Targets:
+          S3Targets:
+            - Path: !Ref SahilDemoBucket1
+  SahilTestGlueCrawler2:
+      Type: AWS::Glue::Crawler
+      Properties:
+        Name: sahil-demo-result-data-crawler
+        # Role: AWSGlueServiceRoleSahil
+        Role: !Ref AWSGlueJobRole
+        DatabaseName: sahil-demo-db
+        Targets:
+          S3Targets:
+            - Path: "s3://sahil-demo-result-data-bkt"
+  SahilDemoJob:
+      Type: AWS::Glue::Job
+      Properties: 
+        Command: 
+          Name: glueetl                      
+          ScriptLocation: "s3://sahil-data-lake-cloud-formation-script/aws-glue-etl-job-data-tranform-script.py"
+        ExecutionProperty:
+          MaxConcurrentRuns: 1
+        MaxRetries: 0
+        Timeout: 10
+        GlueVersion: "2.0"
+        Name: sahil-demo-etl-job
+        Role: AWSGlueServiceRoleSahil
+        DefaultArguments: {
+          "--job-type" : "spark",
+          "--database_name" : !Ref SahilTestDB,
+          "--s3_output_path": !Ref SahilDemoBucket2,
+        }
